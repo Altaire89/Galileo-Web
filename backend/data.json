@@ -27,7 +27,7 @@
       "name": "Ana Admin",
       "role": "ORG_ADMIN",
       "active": true,
-      "password": "427fce8d65a77bfc$5b17fe2693b8132b90762c515a30a47de20a9cf81d9350b16fa8c1f56122eeba",
+      "password": "$argon2id$v=19$m=65536,t=3,p=4$JWl2z2vwm/0c+CxNzKXLkg$lnvpYuxgCFDS16Gzcafh/Graxp2Bgwur9DpBCtv3oak",
       "created_at": "2026-09-07T09:49:35.448994+00:00"
     },
     {
@@ -49,6 +49,16 @@
       "active": true,
       "password": "1b9139a135b602cb$d5abcf1afd022dae5e76302bcb4187e6380c41c60925df8f66f86012959fdc92",
       "created_at": "2026-09-07T09:49:35.448994+00:00"
+    },
+    {
+      "id": "usr_9Jc8QbEA0BCByzcZjCxDOpURSTwSfQFr0d21OKf47s4",
+      "org_id": "org_acme",
+      "email": "uxpdvksrthnsipkanp@gonrr.net",
+      "name": "User1",
+      "role": "MEMBER",
+      "active": true,
+      "password": "$argon2id$v=19$m=65536,t=3,p=4$00Ds/NhIV88tDS2a8qtOQw$C45n4LfVyqlHZIvvQWZBw9vWLulo7aT6YkhhmNHT3h4",
+      "created_at": "2026-09-07T23:02:31.437174+00:00"
     }
   ],
   "groups": [
@@ -102,9 +112,24 @@
     {
       "user_id": "usr_globex_admin",
       "group_id": "group_globex_general"
+    },
+    {
+      "user_id": "usr_9Jc8QbEA0BCByzcZjCxDOpURSTwSfQFr0d21OKf47s4",
+      "group_id": "group_acme_general"
     }
   ],
-  "invitations": [],
+  "invitations": [
+    {
+      "id": "inv_r3er2VGN3Lnl4zFta0Ik999_lghrWUqKDZtCxpZWwow",
+      "org_id": "org_acme",
+      "email": "uxpdvksrthnsipkanp@gonrr.net",
+      "role": "MEMBER",
+      "group_ids": [],
+      "token_hash": "38588cb05b9d8f5b8bd33a17f3874198ee58deabc2f140dfc685bbdbd2f899f3",
+      "accepted": true,
+      "created_at": "2026-09-07T23:01:48.990342+00:00"
+    }
+  ],
   "requests": [
     {
       "id": "req_seed1",
@@ -141,6 +166,18 @@
       "created_by": "usr_acme_user",
       "created_at": "2026-09-07T09:49:35.448994+00:00",
       "updated_at": "2026-09-07T09:49:35.448994+00:00"
+    },
+    {
+      "id": "req_wcObYtKVbEJjUQVZhHWBe0mFJyMDv_B8BKvkiR3sG9Y",
+      "org_id": "org_acme",
+      "group_id": "group_acme_general",
+      "title": "Baño atascado",
+      "type": "Incidencia",
+      "urgency": "Media",
+      "status": "Abierta",
+      "created_by": "usr_9Jc8QbEA0BCByzcZjCxDOpURSTwSfQFr0d21OKf47s4",
+      "created_at": "2026-09-07T23:03:05.430040+00:00",
+      "updated_at": "2026-09-07T23:03:05.430040+00:00"
     }
   ],
   "messages": [
@@ -179,15 +216,50 @@
       "body": "¿Cuántas licencias de Office tenemos disponibles?",
       "attachments": [],
       "created_at": "2026-09-07T09:49:35.448994+00:00"
+    },
+    {
+      "id": "msg_3keHJsfSZoYZY_xb-Sw2rVltFxyB5kwoHLK-pHB-s2c",
+      "request_id": "req_wcObYtKVbEJjUQVZhHWBe0mFJyMDv_B8BKvkiR3sG9Y",
+      "org_id": "org_acme",
+      "author_id": "usr_9Jc8QbEA0BCByzcZjCxDOpURSTwSfQFr0d21OKf47s4",
+      "body": "Hola, buenas tardes",
+      "attachments": [],
+      "created_at": "2026-09-07T23:03:05.430040+00:00"
     }
   ],
   "sessions": {
-    "sess_466a82c6ae79": "usr_platform_admin",
-    "sess_324da43db991": "usr_acme_admin",
-    "sess_cc99f9c33dd9": "usr_acme_admin",
-    "sess_493d73afe521": "usr_acme_admin",
-    "sess_285156b8acfc": "usr_platform_admin",
-    "sess_a44433f30dc1": "usr_acme_admin"
+    "58c56b83c45fe8fddf02843ff86889b6e7d230f4670268b8de6d2ade731f5d43": {
+      "user_id": "usr_platform_admin",
+      "expires_at": "2026-09-08T06:49:47.017078+00:00"
+    },
+    "0e61cbf30c25d8362194d0bc2689e1bc4a881987778283f5d04b973ece17be7d": {
+      "user_id": "usr_acme_admin",
+      "expires_at": "2026-09-08T06:49:47.017078+00:00"
+    },
+    "9c5e16e8442f7e52c9ec33cb1a10b7d4fe1e53d058e7b643296829cf6d77e040": {
+      "user_id": "usr_acme_admin",
+      "expires_at": "2026-09-08T06:49:47.017078+00:00"
+    },
+    "aed523441484a240c29deda46e3b085dd2308969026367e652f0399b1d6d69d2": {
+      "user_id": "usr_acme_admin",
+      "expires_at": "2026-09-08T06:49:47.017078+00:00"
+    },
+    "87f5673646e03a7913aca6648feeedbf58255fd5df4aae58bb1e5186366480c1": {
+      "user_id": "usr_platform_admin",
+      "expires_at": "2026-09-08T06:49:47.017078+00:00"
+    },
+    "bc2b99af87a7f17ea29001f1f5ee3b5a9f2fa6a3394172fa9a12f04b80d3b699": {
+      "user_id": "usr_acme_admin",
+      "expires_at": "2026-09-08T06:49:47.017078+00:00"
+    },
+    "2cc6b62e995a6a609212683bd59ae261825dd223ddac5dd9e83d229848b617b0": {
+      "user_id": "usr_acme_admin",
+      "expires_at": "2026-09-08T07:01:25.859821+00:00"
+    },
+    "e248502bdeaab8d553dea80abbf499efba4361c0d6a1aca5053b503dd88ca8d5": {
+      "user_id": "usr_9Jc8QbEA0BCByzcZjCxDOpURSTwSfQFr0d21OKf47s4",
+      "expires_at": "2026-09-08T07:02:31.437174+00:00"
+    }
   },
   "schema_version": 3
 }

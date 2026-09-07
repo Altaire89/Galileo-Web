@@ -159,7 +159,7 @@ export function TeamManager() {
 function InviteRow({ inv }: { inv: Invitation }) {
   const [copied, setCopied] = useState(false)
   const link =
-    typeof window !== "undefined"
+    typeof window !== "undefined" && inv.token
       ? `${window.location.origin}/register?token=${inv.token}`
       : ""
 
@@ -172,6 +172,7 @@ function InviteRow({ inv }: { inv: Invitation }) {
         </p>
       </div>
       <button
+        disabled={!link}
         onClick={() => {
           navigator.clipboard?.writeText(link)
           setCopied(true)
@@ -269,10 +270,10 @@ function AddUserDialog({ onClose, onDone }: { onClose: () => void; onDone: () =>
             <input
               type="text"
               required
-              minLength={6}
+              minLength={12}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="Mínimo 6 caracteres"
+              placeholder="12 caracteres, mayúscula, minúscula y número"
               className="input"
             />
           </label>

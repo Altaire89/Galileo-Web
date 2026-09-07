@@ -11,9 +11,13 @@ import os
 import secrets
 import tempfile
 import threading
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+
+from argon2 import PasswordHasher
+from argon2.exceptions import InvalidHashError, VerificationError, VerifyMismatchError
 
 _LOCK = threading.RLock()
+_PASSWORD_HASHER = PasswordHasher(time_cost=3, memory_cost=64 * 1024, parallelism=4)
 
 # Prefer a writable location; fall back to the system temp dir on read-only FS.
 _DEFAULT_PATH = os.path.join(os.path.dirname(__file__), "data.json")
@@ -30,21 +34,37 @@ def now_iso() -> str:
 
 
 def new_id(prefix: str) -> str:
-    return f"{prefix}_{secrets.token_hex(6)}"
+    return f"{prefix}_{secrets.token_urlsafe(32)}"
 
 
-def hash_password(password: str, salt: str | None = None) -> str:
-    salt = salt or secrets.token_hex(8)
-    digest = hashlib.pbkdf2_hmac("sha256", password.encode(), salt.encode(), 100_000)
-    return f"{salt}${digest.hex()}"
+def hash_password(password: str) -> str:
+    return _PASSWORD_HASHER.hash(password)
 
 
 def verify_password(password: str, stored: str) -> bool:
+    if stored.startswith("$argon2"):
+        try:
+            return _PASSWORD_HASHER.verify(stored, password)
+        except (InvalidHashError, VerificationError, VerifyMismatchError):
+            return False
     try:
         salt, _ = stored.split("$", 1)
     except ValueError:
         return False
-    return secrets.compare_digest(hash_password(password, salt), stored)
+    digest = hashlib.pbkdf2_hmac("sha256", password.encode(), salt.encode(), 100_000)
+    return secrets.compare_digest(f"{salt}${digest.hex()}", stored)
+
+
+def password_needs_rehash(stored: str) -> bool:
+    return not stored.startswith("$argon2") or _PASSWORD_HASHER.check_needs_rehash(stored)
+
+
+def token_digest(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def _session_expiry() -> str:
+    return (datetime.now(timezone.utc) + timedelta(hours=8)).isoformat()
 
 
 def _seed() -> dict:
@@ -131,6 +151,16 @@ def _ensure_schema(data: dict) -> bool:
     }
     data.setdefault("groups", [])
     data.setdefault("group_members", [])
+    sessions = data.setdefault("sessions", {})
+    for key, value in list(sessions.items()):
+        if len(key) != 64 or not isinstance(value, dict):
+            sessions.pop(key)
+            sessions[token_digest(key)] = {"user_id": value, "expires_at": _session_expiry()}
+            changed = True
+    for invitation in data.get("invitations", []):
+        if "token" in invitation and "token_hash" not in invitation:
+            invitation["token_hash"] = token_digest(invitation.pop("token"))
+            changed = True
     for group in data["groups"]:
         if "manager_ids" not in group:
             group["manager_ids"] = []

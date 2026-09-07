@@ -3,18 +3,28 @@
 from functools import wraps
 from typing import Any
 
-from flask import Flask, jsonify, request
+from datetime import datetime, timedelta, timezone
+import os
+
+from flask import Flask, jsonify, make_response, request
 from flask_cors import CORS
 
-from store import hash_password, new_id, now_iso, store, verify_password
+from store import hash_password, new_id, now_iso, password_needs_rehash, store, token_digest, verify_password
 
 app = Flask(__name__)
-CORS(app)
+CORS(
+    app,
+    supports_credentials=True,
+    origins=os.getenv("FRONTEND_ORIGIN", "http://localhost:3000").split(","),
+)
 
 REQUEST_TYPES = {"Incidencia", "Consulta", "Petición"}
 URGENCIES = {"Baja", "Media", "Alta", "Crítica"}
 STATUSES = {"Abierta", "En progreso", "Resuelta", "Cerrada"}
 ROLES = {"PLATFORM_ADMIN", "ORG_ADMIN", "MEMBER"}
+SESSION_COOKIE = "nexo_session"
+SESSION_TTL = timedelta(hours=8)
+PASSWORD_MIN_LENGTH = 12
 
 
 def error(message: str, status: int):
@@ -31,6 +41,34 @@ def required_string(body: dict[str, Any], key: str, minimum: int = 1) -> str | N
     if not isinstance(value, str) or len(value.strip()) < minimum:
         return None
     return value.strip()
+
+
+def valid_password(password: Any) -> bool:
+    return (
+        isinstance(password, str)
+        and len(password) >= PASSWORD_MIN_LENGTH
+        and any(character.islower() for character in password)
+        and any(character.isupper() for character in password)
+        and any(character.isdigit() for character in password)
+    )
+
+
+def session_expiry() -> str:
+    return (datetime.now(timezone.utc) + SESSION_TTL).isoformat()
+
+
+def session_cookie_response(payload: dict, token: str):
+    response = make_response(jsonify(payload))
+    response.set_cookie(
+        SESSION_COOKIE,
+        token,
+        max_age=int(SESSION_TTL.total_seconds()),
+        httponly=True,
+        secure=request.is_secure or request.environ.get("FLASK_SECURE_COOKIES") == "1",
+        samesite="Lax",
+        path="/",
+    )
+    return response
 
 
 def valid_email(value: Any) -> bool:
@@ -54,12 +92,24 @@ def bearer_token() -> str:
     return authorization.removeprefix("Bearer ").strip()
 
 
+def session_token() -> str:
+    return request.cookies.get(SESSION_COOKIE, "") or bearer_token()
+
+
 def get_current_user() -> dict | None:
-    token = bearer_token()
+    token = session_token()
     if not token:
         return None
     db = store.read()
-    user_id = db.get("sessions", {}).get(token)
+    session = db.get("sessions", {}).get(token_digest(token))
+    if session is None:
+        session = db.get("sessions", {}).get(token)
+    if isinstance(session, dict):
+        if datetime.fromisoformat(session["expires_at"]) <= datetime.now(timezone.utc):
+            return None
+        user_id = session["user_id"]
+    else:
+        user_id = session
     user = next((item for item in db["users"] if item["id"] == user_id), None)
     return user if user and user.get("active", True) else None
 
@@ -69,7 +119,7 @@ def authenticated(handler):
     def wrapper(*args, **kwargs):
         user = get_current_user()
         if not user:
-            return error("No autenticado" if not bearer_token() else "Sesión inválida", 401)
+            return error("No autenticado" if not session_token() else "Sesión inválida", 401)
         return handler(user, *args, **kwargs)
 
     return wrapper
@@ -156,13 +206,17 @@ def login():
             return error("Credenciales incorrectas", 401)
         if not user.get("active", True):
             return error("Cuenta desactivada", 403)
+        if password_needs_rehash(user["password"]):
+            user["password"] = hash_password(password)
         token = new_id("sess")
-        db.setdefault("sessions", {})[token] = user["id"]
-        return jsonify({
-            "token": token,
+        db.setdefault("sessions", {})[token_digest(token)] = {
+            "user_id": user["id"],
+            "expires_at": session_expiry(),
+        }
+        return session_cookie_response({
             "user": public_user(user),
             "organization": organization_name(db, user["org_id"]),
-        })
+        }, token)
 
 
 @app.post("/auth/logout")
@@ -170,8 +224,12 @@ def login():
 def logout(user):
     del user
     with store.transaction() as db:
-        db.get("sessions", {}).pop(bearer_token(), None)
-    return jsonify({"ok": True})
+        token = session_token()
+        db.get("sessions", {}).pop(token_digest(token), None)
+        db.get("sessions", {}).pop(token, None)
+    response = make_response(jsonify({"ok": True}))
+    response.delete_cookie(SESSION_COOKIE, path="/")
+    return response
 
 
 @app.get("/auth/me")
@@ -184,7 +242,7 @@ def me(user):
 @app.get("/auth/invitation/<token>")
 def get_invitation(token):
     db = store.read()
-    invitation = next((item for item in db["invitations"] if item["token"] == token), None)
+    invitation = next((item for item in db["invitations"] if item.get("token_hash") == token_digest(token) or item.get("token") == token), None)
     if not invitation or invitation.get("accepted"):
         return error("Invitación no válida o ya utilizada", 404)
     return jsonify({
@@ -201,10 +259,10 @@ def register():
     invitation_token = required_string(body, "token")
     name = required_string(body, "name")
     password = body.get("password")
-    if not invitation_token or not name or not isinstance(password, str) or len(password) < 6:
-        return error("Datos de registro no válidos", 422)
+    if not invitation_token or not name or not valid_password(password):
+        return error("La contraseña debe tener al menos 12 caracteres, una mayúscula, una minúscula y un número", 422)
     with store.transaction() as db:
-        invitation = next((item for item in db["invitations"] if item["token"] == invitation_token), None)
+        invitation = next((item for item in db["invitations"] if item.get("token_hash") == token_digest(invitation_token) or item.get("token") == invitation_token), None)
         if not invitation or invitation.get("accepted"):
             return error("Invitación no válida o ya utilizada", 404)
         if any(item["email"] == invitation["email"] for item in db["users"]):
@@ -226,8 +284,11 @@ def register():
         )
         invitation["accepted"] = True
         token = new_id("sess")
-        db.setdefault("sessions", {})[token] = user["id"]
-        return jsonify({"token": token, "user": public_user(user), "organization": organization_name(db, user["org_id"])})
+        db.setdefault("sessions", {})[token_digest(token)] = {
+            "user_id": user["id"],
+            "expires_at": session_expiry(),
+        }
+        return session_cookie_response({"user": public_user(user), "organization": organization_name(db, user["org_id"])}, token)
 
 
 @app.get("/users")
@@ -255,8 +316,8 @@ def create_user(admin):
     name = required_string(body, "name")
     password = body.get("password")
     role = body.get("role", "MEMBER")
-    if not valid_email(email) or not name or not isinstance(password, str) or len(password) < 6:
-        return error("Datos de usuario no válidos", 422)
+    if not valid_email(email) or not name or not valid_password(password):
+        return error("La contraseña debe tener al menos 12 caracteres, una mayúscula, una minúscula y un número", 422)
     if role not in {"ORG_ADMIN", "MEMBER"}:
         return error("Rol no válido", 422)
     with store.transaction() as db:
@@ -416,7 +477,10 @@ def delete_group(admin, group_id):
 @admin_only
 def list_invitations(admin):
     db = store.read()
-    return jsonify([item for item in db["invitations"] if item["org_id"] == admin["org_id"]])
+    return jsonify([
+        {key: value for key, value in item.items() if key not in {"token", "token_hash"}}
+        for item in db["invitations"] if item["org_id"] == admin["org_id"]
+    ])
 
 
 @app.post("/invitations")
@@ -435,12 +499,13 @@ def create_invitation(admin):
             return error("Ya existe una cuenta con este correo", 409)
         if any(not valid_group_for_user(db, admin, group_id) for group_id in group_ids):
             return error("Grupo no válido", 422)
+        token = new_id("tok")
         invitation = {
             "id": new_id("inv"), "org_id": admin["org_id"], "email": email.lower(),
-            "role": role, "group_ids": group_ids, "token": new_id("tok"), "accepted": False, "created_at": now_iso(),
+            "role": role, "group_ids": group_ids, "token_hash": token_digest(token), "accepted": False, "created_at": now_iso(),
         }
         db["invitations"].append(invitation)
-        return jsonify(invitation)
+        return jsonify({**{key: value for key, value in invitation.items() if key != "token_hash"}, "token": token})
 
 
 @app.get("/requests")

@@ -8,7 +8,7 @@ import {
   useState,
   type ReactNode,
 } from "react"
-import { apiFetch, clearToken, getToken, setToken } from "@/lib/api"
+import { apiFetch, clearToken } from "@/lib/api"
 import type { User } from "@/lib/types"
 
 interface Session {
@@ -35,10 +35,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let active = true
     async function bootstrap() {
-      if (!getToken()) {
-        setLoading(false)
-        return
-      }
       try {
         const data = await apiFetch<Session>("/auth/me")
         if (active) {
@@ -58,22 +54,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const login = useCallback(async (email: string, password: string) => {
-    const data = await apiFetch<Session & { token: string }>("/auth/login", {
+    const data = await apiFetch<Session>("/auth/login", {
       method: "POST",
       body: JSON.stringify({ email, password }),
     })
-    setToken(data.token)
     setUser(data.user)
     setOrganization(data.organization)
   }, [])
 
   const register = useCallback(
     async (token: string, name: string, password: string) => {
-      const data = await apiFetch<Session & { token: string }>("/auth/register", {
+      const data = await apiFetch<Session>("/auth/register", {
         method: "POST",
         body: JSON.stringify({ token, name, password }),
       })
-      setToken(data.token)
       setUser(data.user)
       setOrganization(data.organization)
     },

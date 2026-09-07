@@ -62,7 +62,7 @@ export interface Invitation {
   email: string
   role: Role
   group_ids: string[]
-  token: string
+  token?: string
   accepted: boolean
   created_at: string
 }

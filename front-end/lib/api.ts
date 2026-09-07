@@ -1,16 +1,12 @@
-const TOKEN_KEY = "nexo_token"
-
 export function getToken(): string | null {
-  if (typeof window === "undefined") return null
-  return window.localStorage.getItem(TOKEN_KEY)
+  return null
 }
 
 export function setToken(token: string) {
-  window.localStorage.setItem(TOKEN_KEY, token)
+  void token
 }
 
 export function clearToken() {
-  window.localStorage.removeItem(TOKEN_KEY)
 }
 
 export class ApiError extends Error {
@@ -25,14 +21,12 @@ export async function apiFetch<T = unknown>(
   path: string,
   options: RequestInit = {},
 ): Promise<T> {
-  const token = getToken()
   const headers = new Headers(options.headers)
   if (!headers.has("Content-Type") && options.body) {
     headers.set("Content-Type", "application/json")
   }
-  if (token) headers.set("Authorization", `Bearer ${token}`)
 
-  const res = await fetch(`/api${path}`, { ...options, headers })
+  const res = await fetch(`/api${path}`, { ...options, headers, credentials: "include" })
 
   if (res.status === 204) return undefined as T
 

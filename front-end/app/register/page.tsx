@@ -100,10 +100,10 @@ function RegisterInner() {
                   <input
                     type="password"
                     required
-                    minLength={6}
+                    minLength={12}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Mínimo 6 caracteres"
+                    placeholder="12 caracteres, mayúscula, minúscula y número"
                     className="input"
                   />
                 </label>
