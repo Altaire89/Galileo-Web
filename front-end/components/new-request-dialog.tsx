@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import useSWR from "swr"
 import { apiFetch, ApiError, fetcher } from "@/lib/api"
 import { useDebounce } from "@/lib/use-debounce"
@@ -11,6 +11,7 @@ import {
   type RequestSummary,
   type RequestType,
   type Urgency,
+  type Group,
 } from "@/lib/types"
 import { StatusBadge } from "@/components/badges"
 
@@ -27,6 +28,7 @@ export function NewRequestDialog({
   const [type, setType] = useState<RequestType>("Incidencia")
   const [urgency, setUrgency] = useState<Urgency>("Media")
   const [body, setBody] = useState("")
+  const [groupId, setGroupId] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
@@ -38,18 +40,19 @@ export function NewRequestDialog({
       : null,
     fetcher,
   )
-
-  useEffect(() => {
-    if (!open) {
-      setTitle("")
-      setType("Incidencia")
-      setUrgency("Media")
-      setBody("")
-      setError(null)
-    }
-  }, [open])
+  const { data: groups } = useSWR<Group[]>(open ? "/groups" : null, fetcher)
 
   if (!open) return null
+
+  function close() {
+    setTitle("")
+    setType("Incidencia")
+    setUrgency("Media")
+    setBody("")
+    setGroupId("")
+    setError(null)
+    onClose()
+  }
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -58,7 +61,7 @@ export function NewRequestDialog({
     try {
       const created = await apiFetch<RequestSummary>("/requests", {
         method: "POST",
-        body: JSON.stringify({ title, type, urgency, body }),
+        body: JSON.stringify({ title, type, urgency, body, group_id: groupId }),
       })
       const detail = await apiFetch<RequestDetail>(`/requests/${created.id}`)
       onCreated(detail)
@@ -71,7 +74,7 @@ export function NewRequestDialog({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/40" onClick={onClose} aria-hidden="true" />
+      <div className="absolute inset-0 bg-black/40" onClick={close} aria-hidden="true" />
       <div
         role="dialog"
         aria-modal="true"
@@ -81,7 +84,7 @@ export function NewRequestDialog({
         <div className="flex items-center justify-between border-b border-border px-5 py-4">
           <h2 className="text-base font-semibold">Nueva solicitud</h2>
           <button
-            onClick={onClose}
+            onClick={close}
             className="flex size-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted"
             aria-label="Cerrar"
           >
@@ -156,6 +159,21 @@ export function NewRequestDialog({
               </div>
 
               <label className="flex flex-col gap-1.5">
+                <span className="text-sm font-medium">Grupo</span>
+                <select
+                  required
+                  value={groupId}
+                  onChange={(e) => setGroupId(e.target.value)}
+                  className="select"
+                >
+                  <option value="">Selecciona un grupo</option>
+                  {(groups ?? []).filter((group) => group.active).map((group) => (
+                    <option key={group.id} value={group.id}>{group.name}</option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="flex flex-col gap-1.5">
                 <span className="text-sm font-medium">Descripción</span>
                 <textarea
                   required
@@ -174,7 +192,7 @@ export function NewRequestDialog({
           </div>
 
           <div className="flex items-center justify-end gap-2 border-t border-border px-5 py-3">
-            <button type="button" onClick={onClose} className="btn-secondary">
+            <button type="button" onClick={close} className="btn-secondary">
               Cancelar
             </button>
             <button type="submit" disabled={submitting} className="btn-primary">

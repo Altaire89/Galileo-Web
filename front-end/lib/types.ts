@@ -1,4 +1,4 @@
-export type Role = "UCA" | "UC"
+export type Role = "PLATFORM_ADMIN" | "ORG_ADMIN" | "MEMBER"
 
 export type RequestType = "Incidencia" | "Consulta" | "Petición"
 export type Urgency = "Baja" | "Media" | "Alta" | "Crítica"
@@ -14,6 +14,7 @@ export interface User {
   email: string
   name: string
   role: Role
+  group_ids?: string[]
   active: boolean
   created_at: string
 }
@@ -37,6 +38,7 @@ export interface Message {
 export interface RequestSummary {
   id: string
   org_id: string
+  group_id: string
   title: string
   type: RequestType
   urgency: Urgency
@@ -59,7 +61,19 @@ export interface Invitation {
   org_id: string
   email: string
   role: Role
-  token: string
+  group_ids: string[]
+  token?: string
   accepted: boolean
   created_at: string
+}
+
+export interface Group {
+  id: string
+  org_id: string
+  name: string
+  active: boolean
+  member_count: number
+  member?: boolean
+  member_ids: string[]
+  manager_ids: string[]
 }

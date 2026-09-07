@@ -10,10 +10,10 @@ export default function TeamPage() {
   const router = useRouter()
 
   useEffect(() => {
-    if (!loading && user && user.role !== "UCA") router.replace("/dashboard")
+    if (!loading && user && !["ORG_ADMIN", "PLATFORM_ADMIN"].includes(user.role)) router.replace("/dashboard")
   }, [user, loading, router])
 
-  if (!user || user.role !== "UCA") return null
+  if (!user || !["ORG_ADMIN", "PLATFORM_ADMIN"].includes(user.role)) return null
 
   return <TeamManager />
 }

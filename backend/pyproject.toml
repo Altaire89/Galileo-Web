@@ -2,9 +2,13 @@
 name = "backend"
 version = "0.1.0"
 description = "REST API for the consultancy support platform"
-requires-python = ">=3.12"
+requires-python = ">=3.11"
 dependencies = [
+	"argon2-cffi>=25.1.0",
 	"flask>=3.1.0",
 	"flask-cors>=5.0.0",
 	"gunicorn>=23.0.0; platform_system != 'Windows'",
 ]
+
+[tool.setuptools]
+py-modules = ["main", "store"]

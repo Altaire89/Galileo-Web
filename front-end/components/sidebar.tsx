@@ -34,13 +34,25 @@ const NAV: NavItem[] = [
       </svg>
     ),
   },
+  {
+    href: "/dashboard/groups",
+    label: "Grupos",
+    icon: (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <rect x="4" y="4" width="6" height="6" rx="1" stroke="currentColor" strokeWidth="1.8" />
+        <rect x="14" y="4" width="6" height="6" rx="1" stroke="currentColor" strokeWidth="1.8" />
+        <rect x="9" y="14" width="6" height="6" rx="1" stroke="currentColor" strokeWidth="1.8" />
+        <path d="M7 10v2h10v-2M12 12v2" stroke="currentColor" strokeWidth="1.8" />
+      </svg>
+    ),
+  },
 ]
 
 export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname()
   const { user, organization, logout } = useAuth()
 
-  const items = NAV.filter((i) => !i.adminOnly || user?.role === "UCA")
+  const items = NAV.filter((i) => !i.adminOnly || user?.role === "ORG_ADMIN" || user?.role === "PLATFORM_ADMIN")
 
   return (
     <div className="flex h-full w-64 flex-col border-r border-border bg-sidebar">
@@ -84,7 +96,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-medium leading-tight">{user?.name}</p>
             <p className="truncate text-xs text-muted-foreground">
-              {user?.role === "UCA" ? "Administrador" : "Cliente"}
+              {user?.role === "PLATFORM_ADMIN" ? "Administrador de plataforma" : user?.role === "ORG_ADMIN" ? "Administrador" : "Miembro"}
             </p>
           </div>
         </div>
