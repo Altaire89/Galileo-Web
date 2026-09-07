@@ -26,10 +26,7 @@ function RegisterInner() {
   const [submitting, setSubmitting] = useState(false)
 
   useEffect(() => {
-    if (!token) {
-      setLoadError("Falta el token de invitación en el enlace.")
-      return
-    }
+    if (!token) return
     apiFetch<InvitePreview>(`/auth/invitation/${token}`)
       .then(setInvite)
       .catch((err) =>
@@ -62,10 +59,10 @@ function RegisterInner() {
         <div className="rounded-lg border border-border bg-surface p-6 shadow-sm">
           <h1 className="text-xl font-semibold tracking-tight">Crear tu cuenta</h1>
 
-          {loadError ? (
+          {!token || loadError ? (
             <div className="mt-4">
               <p className="rounded-md bg-[#fdeaea] px-3 py-2 text-sm text-danger">
-                {loadError}
+                {loadError ?? "Falta el token de invitación en el enlace."}
               </p>
               <button
                 onClick={() => router.replace("/login")}
@@ -80,7 +77,7 @@ function RegisterInner() {
             <>
               <p className="mt-1 text-sm text-muted-foreground">
                 Has sido invitado a <strong className="text-foreground">{invite.organization}</strong>{" "}
-                como <strong className="text-foreground">{invite.role === "UCA" ? "Administrador" : "Cliente"}</strong>.
+                como <strong className="text-foreground">{invite.role === "ORG_ADMIN" ? "Administrador" : invite.role === "GROUP_MANAGER" ? "Responsable de grupo" : "Miembro"}</strong>.
               </p>
 
               <form onSubmit={onSubmit} className="mt-6 flex flex-col gap-4">

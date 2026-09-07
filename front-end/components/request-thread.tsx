@@ -165,7 +165,7 @@ export function RequestThread({
               >
                 <span
                   className={`flex size-7 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold ${
-                    m.author_role === "UCA"
+                    m.author_role === "ORG_ADMIN" || m.author_role === "PLATFORM_ADMIN"
                       ? "bg-accent text-accent-foreground"
                       : "bg-muted text-muted-foreground"
                   }`}

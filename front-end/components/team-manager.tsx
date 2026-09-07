@@ -95,8 +95,8 @@ export function TeamManager() {
                     className="select !w-auto !py-1 text-xs"
                     aria-label={`Rol de ${u.name}`}
                   >
-                    <option value="UC">Cliente</option>
-                    <option value="UCA">Administrador</option>
+                    <option value="MEMBER">Miembro</option>
+                    <option value="ORG_ADMIN">Administrador</option>
                   </select>
 
                   {u.id !== user?.id && (
@@ -168,7 +168,7 @@ function InviteRow({ inv }: { inv: Invitation }) {
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium">{inv.email}</p>
         <p className="truncate text-xs text-muted-foreground">
-          {inv.role === "UCA" ? "Administrador" : "Cliente"} · enlace de registro
+          {inv.role === "ORG_ADMIN" ? "Administrador" : inv.role === "GROUP_MANAGER" ? "Responsable de grupo" : "Miembro"} · enlace de registro
         </p>
       </div>
       <button
@@ -225,7 +225,7 @@ function AddUserDialog({ onClose, onDone }: { onClose: () => void; onDone: () =>
   const [name, setName] = useState("")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
-  const [role, setRole] = useState<Role>("UC")
+  const [role, setRole] = useState<Role>("MEMBER")
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
@@ -279,8 +279,8 @@ function AddUserDialog({ onClose, onDone }: { onClose: () => void; onDone: () =>
           <label className="flex flex-col gap-1.5">
             <span className="text-sm font-medium">Rol</span>
             <select value={role} onChange={(e) => setRole(e.target.value as Role)} className="select">
-              <option value="UC">Cliente</option>
-              <option value="UCA">Administrador</option>
+              <option value="MEMBER">Miembro</option>
+              <option value="ORG_ADMIN">Administrador</option>
             </select>
           </label>
         </div>
@@ -300,7 +300,7 @@ function AddUserDialog({ onClose, onDone }: { onClose: () => void; onDone: () =>
 
 function InviteDialog({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
   const [email, setEmail] = useState("")
-  const [role, setRole] = useState<Role>("UC")
+  const [role, setRole] = useState<Role>("MEMBER")
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [link, setLink] = useState<string | null>(null)
@@ -365,8 +365,8 @@ function InviteDialog({ onClose, onDone }: { onClose: () => void; onDone: () => 
           <label className="flex flex-col gap-1.5">
             <span className="text-sm font-medium">Rol</span>
             <select value={role} onChange={(e) => setRole(e.target.value as Role)} className="select">
-              <option value="UC">Cliente</option>
-              <option value="UCA">Administrador</option>
+              <option value="MEMBER">Miembro</option>
+              <option value="ORG_ADMIN">Administrador</option>
             </select>
           </label>
           {error && <p className="rounded-md bg-[#fdeaea] px-3 py-2 text-sm text-danger">{error}</p>}

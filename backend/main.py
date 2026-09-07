@@ -14,6 +14,7 @@ CORS(app)
 REQUEST_TYPES = {"Incidencia", "Consulta", "Petición"}
 URGENCIES = {"Baja", "Media", "Alta", "Crítica"}
 STATUSES = {"Abierta", "En progreso", "Resuelta", "Cerrada"}
+ROLES = {"PLATFORM_ADMIN", "ORG_ADMIN", "GROUP_MANAGER", "MEMBER"}
 
 
 def error(message: str, status: int):
@@ -78,11 +79,50 @@ def admin_only(handler):
     @wraps(handler)
     @authenticated
     def wrapper(user, *args, **kwargs):
-        if user["role"] != "UCA":
+        if user["role"] not in {"ORG_ADMIN", "PLATFORM_ADMIN"}:
             return error("Se requieren permisos de administrador", 403)
         return handler(user, *args, **kwargs)
 
     return wrapper
+
+
+def platform_only(handler):
+    @wraps(handler)
+    @authenticated
+    def wrapper(user, *args, **kwargs):
+        if user["role"] != "PLATFORM_ADMIN":
+            return error("Se requieren permisos de administrador de plataforma", 403)
+        return handler(user, *args, **kwargs)
+
+    return wrapper
+
+
+def user_group_ids(db: dict, user: dict) -> set[str]:
+    if user["role"] in {"PLATFORM_ADMIN", "ORG_ADMIN"}:
+        return {item["id"] for item in db["groups"] if item["org_id"] == user["org_id"]}
+    return {
+        item["group_id"] for item in db["group_members"]
+        if item["user_id"] == user["id"]
+    }
+
+
+def can_access_request(db: dict, user: dict, req: dict) -> bool:
+    return (
+        user["role"] == "PLATFORM_ADMIN"
+        or (
+            req["org_id"] == user["org_id"]
+            and req.get("group_id") in user_group_ids(db, user)
+        )
+    )
+
+
+def valid_group_for_user(db: dict, user: dict, group_id: str) -> bool:
+    return any(
+        group["id"] == group_id
+        and group["org_id"] == user["org_id"]
+        and (user["role"] in {"PLATFORM_ADMIN", "ORG_ADMIN"} or group_id in user_group_ids(db, user))
+        for group in db["groups"]
+    )
 
 
 def request_summary(db: dict, req: dict) -> dict:
@@ -151,6 +191,7 @@ def get_invitation(token):
         "email": invitation["email"],
         "organization": organization_name(db, invitation["org_id"]),
         "role": invitation["role"],
+        "group_ids": invitation.get("group_ids", []),
     })
 
 
@@ -179,6 +220,10 @@ def register():
             "created_at": now_iso(),
         }
         db["users"].append(user)
+        db["group_members"].extend(
+            {"user_id": user["id"], "group_id": group_id}
+            for group_id in invitation.get("group_ids", [])
+        )
         invitation["accepted"] = True
         token = new_id("sess")
         db.setdefault("sessions", {})[token] = user["id"]
@@ -189,7 +234,17 @@ def register():
 @admin_only
 def list_users(admin):
     db = store.read()
-    return jsonify([public_user(item) for item in db["users"] if item["org_id"] == admin["org_id"]])
+    users = db["users"] if admin["role"] == "PLATFORM_ADMIN" else [
+        item for item in db["users"]
+        if item["org_id"] == admin["org_id"] and item["role"] != "PLATFORM_ADMIN"
+    ]
+    return jsonify([
+        {
+            **public_user(item),
+            "group_ids": [membership["group_id"] for membership in db["group_members"] if membership["user_id"] == item["id"]],
+        }
+        for item in users
+    ])
 
 
 @app.post("/users")
@@ -199,10 +254,10 @@ def create_user(admin):
     email = body.get("email", "")
     name = required_string(body, "name")
     password = body.get("password")
-    role = body.get("role", "UC")
+    role = body.get("role", "MEMBER")
     if not valid_email(email) or not name or not isinstance(password, str) or len(password) < 6:
         return error("Datos de usuario no válidos", 422)
-    if role not in {"UC", "UCA"}:
+    if role not in {"ORG_ADMIN", "GROUP_MANAGER", "MEMBER"}:
         return error("Rol no válido", 422)
     with store.transaction() as db:
         if any(item["email"] == email.lower() for item in db["users"]):
@@ -212,8 +267,12 @@ def create_user(admin):
             "name": name, "role": role, "active": True,
             "password": hash_password(password), "created_at": now_iso(),
         }
+        group_ids = body.get("group_ids", [])
+        if not isinstance(group_ids, list) or any(not valid_group_for_user(db, admin, group_id) for group_id in group_ids):
+            return error("Grupo no válido", 422)
         db["users"].append(user)
-        return jsonify(public_user(user))
+        db["group_members"].extend({"user_id": user["id"], "group_id": group_id} for group_id in group_ids)
+        return jsonify({**public_user(user), "group_ids": group_ids})
 
 
 @app.patch("/users/<user_id>")
@@ -221,23 +280,34 @@ def create_user(admin):
 def update_user(admin, user_id):
     body = json_body()
     with store.transaction() as db:
-        user = next((item for item in db["users"] if item["id"] == user_id and item["org_id"] == admin["org_id"]), None)
+        user = next((item for item in db["users"] if item["id"] == user_id and (admin["role"] == "PLATFORM_ADMIN" or item["org_id"] == admin["org_id"])), None)
         if not user:
             return error("Usuario no encontrado", 404)
+        if admin["role"] != "PLATFORM_ADMIN" and user["role"] == "PLATFORM_ADMIN":
+            return error("No puedes modificar al administrador de plataforma", 403)
         if body.get("name") is not None:
             name = required_string(body, "name")
             if not name:
                 return error("Nombre no válido", 422)
             user["name"] = name
         if body.get("role") is not None:
-            if body["role"] not in {"UC", "UCA"}:
+            if body["role"] not in {"ORG_ADMIN", "GROUP_MANAGER", "MEMBER"}:
                 return error("Rol no válido", 422)
             user["role"] = body["role"]
         if body.get("active") is not None:
             if not isinstance(body["active"], bool):
                 return error("Estado no válido", 422)
             user["active"] = body["active"]
-        return jsonify(public_user(user))
+        if body.get("group_ids") is not None:
+            group_ids = body["group_ids"]
+            if not isinstance(group_ids, list) or any(not valid_group_for_user(db, admin, group_id) for group_id in group_ids):
+                return error("Grupo no válido", 422)
+            db["group_members"] = [item for item in db["group_members"] if item["user_id"] != user_id]
+            db["group_members"].extend({"user_id": user_id, "group_id": group_id} for group_id in group_ids)
+        return jsonify({
+            **public_user(user),
+            "group_ids": [item["group_id"] for item in db["group_members"] if item["user_id"] == user_id],
+        })
 
 
 @app.delete("/users/<user_id>")
@@ -247,9 +317,98 @@ def delete_user(admin, user_id):
         return error("No puedes eliminar tu propia cuenta", 400)
     with store.transaction() as db:
         before = len(db["users"])
-        db["users"] = [item for item in db["users"] if not (item["id"] == user_id and item["org_id"] == admin["org_id"])]
+        db["users"] = [item for item in db["users"] if not (item["id"] == user_id and (admin["role"] == "PLATFORM_ADMIN" or item["org_id"] == admin["org_id"]))]
+        db["group_members"] = [item for item in db["group_members"] if item["user_id"] != user_id]
         if len(db["users"]) == before:
             return error("Usuario no encontrado", 404)
+    return jsonify({"ok": True})
+
+
+@app.get("/groups")
+@authenticated
+def list_groups(user):
+    db = store.read()
+    groups = [item for item in db["groups"] if user["role"] == "PLATFORM_ADMIN" or item["org_id"] == user["org_id"]]
+    return jsonify([
+        {
+            **group,
+            "member_count": sum(1 for membership in db["group_members"] if membership["group_id"] == group["id"]),
+            "member": group["id"] in user_group_ids(db, user),
+            "member_ids": [membership["user_id"] for membership in db["group_members"] if membership["group_id"] == group["id"]],
+            "manager_ids": group.get("manager_ids", []),
+        }
+        for group in groups
+    ])
+
+
+@app.post("/groups")
+@admin_only
+def create_group(admin):
+    name = required_string(json_body(), "name")
+    if not name:
+        return error("Nombre de grupo no válido", 422)
+    org_id = json_body().get("org_id", admin["org_id"])
+    if admin["role"] != "PLATFORM_ADMIN":
+        org_id = admin["org_id"]
+    with store.transaction() as db:
+        if not any(item["id"] == org_id for item in db["organizations"]):
+            return error("Organización no encontrada", 404)
+        if any(item["org_id"] == org_id and item["name"].lower() == name.lower() for item in db["groups"]):
+            return error("Ya existe un grupo con ese nombre", 409)
+        group = {"id": new_id("group"), "org_id": org_id, "name": name, "active": True, "manager_ids": []}
+        db["groups"].append(group)
+        return jsonify(group), 201
+
+
+@app.patch("/groups/<group_id>")
+@admin_only
+def update_group(admin, group_id):
+    body = json_body()
+    name = required_string(body, "name")
+    with store.transaction() as db:
+        group = next((item for item in db["groups"] if item["id"] == group_id and (admin["role"] == "PLATFORM_ADMIN" or item["org_id"] == admin["org_id"])), None)
+        if not group:
+            return error("Grupo no encontrado", 404)
+        if name:
+            group["name"] = name
+        if isinstance(body.get("active"), bool):
+            group["active"] = body["active"]
+        member_ids = body.get("member_ids")
+        manager_ids = body.get("manager_ids")
+        if member_ids is not None or manager_ids is not None:
+            member_ids = member_ids if isinstance(member_ids, list) else [item["user_id"] for item in db["group_members"] if item["group_id"] == group_id]
+            manager_ids = manager_ids if isinstance(manager_ids, list) else group.get("manager_ids", [])
+            organization_users = {
+                item["id"] for item in db["users"]
+                if item["org_id"] == group["org_id"] and item.get("role") != "PLATFORM_ADMIN"
+            }
+            if (
+                any(user_id not in organization_users for user_id in member_ids)
+                or any(user_id not in organization_users for user_id in manager_ids)
+                or any(user_id not in member_ids for user_id in manager_ids)
+            ):
+                return error("Miembros o responsables no válidos", 422)
+            db["group_members"] = [item for item in db["group_members"] if item["group_id"] != group_id]
+            db["group_members"].extend({"user_id": user_id, "group_id": group_id} for user_id in member_ids)
+            group["manager_ids"] = manager_ids
+        return jsonify({
+            **group,
+            "member_ids": [item["user_id"] for item in db["group_members"] if item["group_id"] == group_id],
+            "manager_ids": group.get("manager_ids", []),
+        })
+
+
+@app.delete("/groups/<group_id>")
+@admin_only
+def delete_group(admin, group_id):
+    with store.transaction() as db:
+        group = next((item for item in db["groups"] if item["id"] == group_id and (admin["role"] == "PLATFORM_ADMIN" or item["org_id"] == admin["org_id"])), None)
+        if not group:
+            return error("Grupo no encontrado", 404)
+        if sum(1 for item in db["groups"] if item["org_id"] == group["org_id"] and item["active"]) <= 1:
+            return error("La organización debe conservar al menos un grupo", 400)
+        db["groups"] = [item for item in db["groups"] if item["id"] != group_id]
+        db["group_members"] = [item for item in db["group_members"] if item["group_id"] != group_id]
     return jsonify({"ok": True})
 
 
@@ -265,15 +424,20 @@ def list_invitations(admin):
 def create_invitation(admin):
     body = json_body()
     email = body.get("email", "")
-    role = body.get("role", "UC")
-    if not valid_email(email) or role not in {"UC", "UCA"}:
+    role = body.get("role", "MEMBER")
+    if not valid_email(email) or role not in {"ORG_ADMIN", "GROUP_MANAGER", "MEMBER"}:
         return error("Datos de invitación no válidos", 422)
+    group_ids = body.get("group_ids", [])
+    if not isinstance(group_ids, list):
+        return error("Grupos no válidos", 422)
     with store.transaction() as db:
         if any(item["email"] == email.lower() for item in db["users"]):
             return error("Ya existe una cuenta con este correo", 409)
+        if any(not valid_group_for_user(db, admin, group_id) for group_id in group_ids):
+            return error("Grupo no válido", 422)
         invitation = {
             "id": new_id("inv"), "org_id": admin["org_id"], "email": email.lower(),
-            "role": role, "token": new_id("tok"), "accepted": False, "created_at": now_iso(),
+            "role": role, "group_ids": group_ids, "token": new_id("tok"), "accepted": False, "created_at": now_iso(),
         }
         db["invitations"].append(invitation)
         return jsonify(invitation)
@@ -283,7 +447,7 @@ def create_invitation(admin):
 @authenticated
 def list_requests(user):
     db = store.read()
-    items = [item for item in db["requests"] if item["org_id"] == user["org_id"]]
+    items = [item for item in db["requests"] if can_access_request(db, user, item)]
     query = request.args.get("q", "")
     status = request.args.get("status", "")
     date_from = request.args.get("date_from", "")
@@ -312,7 +476,7 @@ def suggest_requests(user):
     title = request.args.get("title", "")
     request_type = request.args.get("type", "")
     tokens = {token for token in title.lower().split() if len(token) > 3}
-    closed = [item for item in db["requests"] if item["org_id"] == user["org_id"] and item["status"] == "Cerrada"]
+    closed = [item for item in db["requests"] if can_access_request(db, user, item) and item["status"] == "Cerrada"]
     scored = []
     for item in closed:
         score = sum(1 for token in tokens if token in item["title"].lower())
@@ -330,13 +494,16 @@ def create_request(user):
     title = required_string(body, "title")
     request_type = body.get("type")
     urgency = body.get("urgency")
+    group_id = body.get("group_id")
     message_body = required_string(body, "body")
-    if not title or request_type not in REQUEST_TYPES or urgency not in URGENCIES or not message_body:
+    if not title or request_type not in REQUEST_TYPES or urgency not in URGENCIES or not message_body or not isinstance(group_id, str):
         return error("Datos de solicitud no válidos", 422)
     with store.transaction() as db:
+        if not valid_group_for_user(db, user, group_id):
+            return error("No tienes acceso a ese grupo", 403)
         timestamp = now_iso()
         req = {
-            "id": new_id("req"), "org_id": user["org_id"], "title": title,
+            "id": new_id("req"), "org_id": user["org_id"], "group_id": group_id, "title": title,
             "type": request_type, "urgency": urgency, "status": "Abierta",
             "created_by": user["id"], "created_at": timestamp, "updated_at": timestamp,
         }
@@ -352,7 +519,7 @@ def create_request(user):
 @authenticated
 def get_request(user, request_id):
     db = store.read()
-    req = next((item for item in db["requests"] if item["id"] == request_id and item["org_id"] == user["org_id"]), None)
+    req = next((item for item in db["requests"] if item["id"] == request_id and can_access_request(db, user, item)), None)
     if not req:
         return error("Solicitud no encontrada", 404)
     users = {item["id"]: item for item in db["users"]}
@@ -374,7 +541,7 @@ def add_message(user, request_id):
     if not isinstance(message_body, str) or not isinstance(attachments, list) or (not message_body.strip() and not attachments):
         return error("El mensaje está vacío", 422)
     with store.transaction() as db:
-        req = next((item for item in db["requests"] if item["id"] == request_id and item["org_id"] == user["org_id"]), None)
+        req = next((item for item in db["requests"] if item["id"] == request_id and can_access_request(db, user, item)), None)
         if not req:
             return error("Solicitud no encontrada", 404)
         timestamp = now_iso()
@@ -396,7 +563,7 @@ def update_status(user, request_id):
     if status not in STATUSES:
         return error("Estado no válido", 422)
     with store.transaction() as db:
-        req = next((item for item in db["requests"] if item["id"] == request_id and item["org_id"] == user["org_id"]), None)
+        req = next((item for item in db["requests"] if item["id"] == request_id and can_access_request(db, user, item)), None)
         if not req:
             return error("Solicitud no encontrada", 404)
         req["status"] = status

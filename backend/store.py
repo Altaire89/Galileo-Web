@@ -70,9 +70,19 @@ def _seed() -> dict:
             {"id": org_b, "name": "Globex"},
         ],
         "users": [
-            user("usr_acme_admin", org_a, "admin@acme.com", "Ana Admin", "UCA", "password123"),
-            user("usr_acme_user", org_a, "user@acme.com", "Carlos Cliente", "UC", "password123"),
-            user("usr_globex_admin", org_b, "admin@globex.com", "Gina Gerente", "UCA", "password123"),
+            user("usr_platform_admin", org_a, "platform@consultora.com", "Platform Admin", "PLATFORM_ADMIN", "password123"),
+            user("usr_acme_admin", org_a, "admin@acme.com", "Ana Admin", "ORG_ADMIN", "password123"),
+            user("usr_acme_user", org_a, "user@acme.com", "Carlos Cliente", "MEMBER", "password123"),
+            user("usr_globex_admin", org_b, "admin@globex.com", "Gina Gerente", "ORG_ADMIN", "password123"),
+        ],
+        "groups": [
+            {"id": "group_acme_general", "org_id": org_a, "name": "General", "active": True},
+            {"id": "group_globex_general", "org_id": org_b, "name": "General", "active": True},
+        ],
+        "group_members": [
+            {"user_id": "usr_acme_admin", "group_id": "group_acme_general"},
+            {"user_id": "usr_acme_user", "group_id": "group_acme_general"},
+            {"user_id": "usr_globex_admin", "group_id": "group_globex_general"},
         ],
         "invitations": [],
         "requests": [],
@@ -82,17 +92,17 @@ def _seed() -> dict:
 
     # A couple of seed requests for Acme so the dashboard isn't empty.
     r1 = {
-        "id": "req_seed1", "org_id": org_a, "title": "El correo corporativo no sincroniza",
+        "id": "req_seed1", "org_id": org_a, "group_id": "group_acme_general", "title": "El correo corporativo no sincroniza",
         "type": "Incidencia", "urgency": "Alta", "status": "En progreso",
         "created_by": "usr_acme_user", "created_at": ts, "updated_at": ts,
     }
     r2 = {
-        "id": "req_seed2", "org_id": org_a, "title": "Solicitud de acceso a la VPN",
+        "id": "req_seed2", "org_id": org_a, "group_id": "group_acme_general", "title": "Solicitud de acceso a la VPN",
         "type": "Petición", "urgency": "Media", "status": "Cerrada",
         "created_by": "usr_acme_user", "created_at": ts, "updated_at": ts,
     }
     r3 = {
-        "id": "req_seed3", "org_id": org_a, "title": "Consulta sobre licencias de Office",
+        "id": "req_seed3", "org_id": org_a, "group_id": "group_acme_general", "title": "Consulta sobre licencias de Office",
         "type": "Consulta", "urgency": "Baja", "status": "Cerrada",
         "created_by": "usr_acme_user", "created_at": ts, "updated_at": ts,
     }
@@ -112,6 +122,64 @@ def _seed() -> dict:
     return data
 
 
+def _ensure_schema(data: dict) -> bool:
+    """Upgrade demo data created before organizations had groups and roles."""
+    changed = False
+    role_map = {"UCA": "ORG_ADMIN", "UC": "MEMBER"}
+    data.setdefault("groups", [])
+    data.setdefault("group_members", [])
+    for group in data["groups"]:
+        if "manager_ids" not in group:
+            group["manager_ids"] = []
+            changed = True
+    unique_users = {}
+    for user in data.get("users", []):
+        existing = unique_users.get(user["id"])
+        if existing is None or user.get("role") == "PLATFORM_ADMIN":
+            unique_users[user["id"]] = user
+        if existing is not None:
+            changed = True
+    if len(unique_users) != len(data.get("users", [])):
+        data["users"] = list(unique_users.values())
+    if not any(user.get("role") == "PLATFORM_ADMIN" for user in data.get("users", [])) and data.get("organizations"):
+        data["users"].append({
+            "id": "usr_platform_admin",
+            "org_id": data["organizations"][0]["id"],
+            "email": "platform@consultora.com",
+            "name": "Platform Admin",
+            "role": "PLATFORM_ADMIN",
+            "active": True,
+            "password": hash_password("password123"),
+            "created_at": now_iso(),
+        })
+        changed = True
+    for organization in data.get("organizations", []):
+        group = next((item for item in data["groups"] if item["org_id"] == organization["id"] and item["name"] == "General"), None)
+        if not group:
+            group = {"id": new_id("group"), "org_id": organization["id"], "name": "General", "active": True}
+            data["groups"].append(group)
+            changed = True
+        for user in data.get("users", []):
+            if user["org_id"] != organization["id"]:
+                continue
+            if user.get("role") in role_map:
+                user["role"] = role_map[user["role"]]
+                changed = True
+            if user.get("role") != "PLATFORM_ADMIN" and not any(
+                item["user_id"] == user["id"] for item in data["group_members"]
+            ):
+                data["group_members"].append({"user_id": user["id"], "group_id": group["id"]})
+                changed = True
+        for req in data.get("requests", []):
+            if req["org_id"] == organization["id"] and not req.get("group_id"):
+                req["group_id"] = group["id"]
+                changed = True
+    if data.get("schema_version") != 2:
+        data["schema_version"] = 2
+        changed = True
+    return changed
+
+
 def _load() -> dict:
     if not os.path.exists(DATA_PATH):
         data = _seed()
@@ -119,7 +187,10 @@ def _load() -> dict:
         return data
     try:
         with open(DATA_PATH, "r", encoding="utf-8") as f:
-            return json.load(f)
+            data = json.load(f)
+        if _ensure_schema(data):
+            _write(data)
+        return data
     except (json.JSONDecodeError, OSError):
         data = _seed()
         _write(data)
