@@ -1,4 +1,4 @@
-export type Role = "PLATFORM_ADMIN" | "ORG_ADMIN" | "GROUP_MANAGER" | "MEMBER"
+export type Role = "PLATFORM_ADMIN" | "ORG_ADMIN" | "MEMBER"
 
 export type RequestType = "Incidencia" | "Consulta" | "Petición"
 export type Urgency = "Baja" | "Media" | "Alta" | "Crítica"

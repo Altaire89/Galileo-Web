@@ -96,7 +96,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-medium leading-tight">{user?.name}</p>
             <p className="truncate text-xs text-muted-foreground">
-              {user?.role === "PLATFORM_ADMIN" ? "Administrador de plataforma" : user?.role === "ORG_ADMIN" ? "Administrador" : user?.role === "GROUP_MANAGER" ? "Responsable de grupo" : "Miembro"}
+              {user?.role === "PLATFORM_ADMIN" ? "Administrador de plataforma" : user?.role === "ORG_ADMIN" ? "Administrador" : "Miembro"}
             </p>
           </div>
         </div>

@@ -168,7 +168,7 @@ function InviteRow({ inv }: { inv: Invitation }) {
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium">{inv.email}</p>
         <p className="truncate text-xs text-muted-foreground">
-          {inv.role === "ORG_ADMIN" ? "Administrador" : inv.role === "GROUP_MANAGER" ? "Responsable de grupo" : "Miembro"} · enlace de registro
+          {inv.role === "ORG_ADMIN" ? "Administrador" : "Miembro"} · enlace de registro
         </p>
       </div>
       <button

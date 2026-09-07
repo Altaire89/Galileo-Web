@@ -125,7 +125,10 @@ def _seed() -> dict:
 def _ensure_schema(data: dict) -> bool:
     """Upgrade demo data created before organizations had groups and roles."""
     changed = False
-    role_map = {"UCA": "ORG_ADMIN", "UC": "MEMBER"}
+    role_map = {"UCA": "ORG_ADMIN", "UC": "MEMBER", "GROUP_MANAGER": "MEMBER"}
+    legacy_manager_ids = {
+        user["id"] for user in data.get("users", []) if user.get("role") == "GROUP_MANAGER"
+    }
     data.setdefault("groups", [])
     data.setdefault("group_members", [])
     for group in data["groups"]:
@@ -170,12 +173,20 @@ def _ensure_schema(data: dict) -> bool:
             ):
                 data["group_members"].append({"user_id": user["id"], "group_id": group["id"]})
                 changed = True
+        for membership in data["group_members"]:
+            if (
+                membership["group_id"] == group["id"]
+                and membership["user_id"] in legacy_manager_ids
+                and membership["user_id"] not in group["manager_ids"]
+            ):
+                group["manager_ids"].append(membership["user_id"])
+                changed = True
         for req in data.get("requests", []):
             if req["org_id"] == organization["id"] and not req.get("group_id"):
                 req["group_id"] = group["id"]
                 changed = True
-    if data.get("schema_version") != 2:
-        data["schema_version"] = 2
+    if data.get("schema_version") != 3:
+        data["schema_version"] = 3
         changed = True
     return changed
 

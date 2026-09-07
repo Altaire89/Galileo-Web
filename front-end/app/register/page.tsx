@@ -77,7 +77,7 @@ function RegisterInner() {
             <>
               <p className="mt-1 text-sm text-muted-foreground">
                 Has sido invitado a <strong className="text-foreground">{invite.organization}</strong>{" "}
-                como <strong className="text-foreground">{invite.role === "ORG_ADMIN" ? "Administrador" : invite.role === "GROUP_MANAGER" ? "Responsable de grupo" : "Miembro"}</strong>.
+                como <strong className="text-foreground">{invite.role === "ORG_ADMIN" ? "Administrador" : "Miembro"}</strong>.
               </p>
 
               <form onSubmit={onSubmit} className="mt-6 flex flex-col gap-4">

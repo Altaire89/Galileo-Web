@@ -14,7 +14,7 @@ CORS(app)
 REQUEST_TYPES = {"Incidencia", "Consulta", "Petición"}
 URGENCIES = {"Baja", "Media", "Alta", "Crítica"}
 STATUSES = {"Abierta", "En progreso", "Resuelta", "Cerrada"}
-ROLES = {"PLATFORM_ADMIN", "ORG_ADMIN", "GROUP_MANAGER", "MEMBER"}
+ROLES = {"PLATFORM_ADMIN", "ORG_ADMIN", "MEMBER"}
 
 
 def error(message: str, status: int):
@@ -257,7 +257,7 @@ def create_user(admin):
     role = body.get("role", "MEMBER")
     if not valid_email(email) or not name or not isinstance(password, str) or len(password) < 6:
         return error("Datos de usuario no válidos", 422)
-    if role not in {"ORG_ADMIN", "GROUP_MANAGER", "MEMBER"}:
+    if role not in {"ORG_ADMIN", "MEMBER"}:
         return error("Rol no válido", 422)
     with store.transaction() as db:
         if any(item["email"] == email.lower() for item in db["users"]):
@@ -291,7 +291,7 @@ def update_user(admin, user_id):
                 return error("Nombre no válido", 422)
             user["name"] = name
         if body.get("role") is not None:
-            if body["role"] not in {"ORG_ADMIN", "GROUP_MANAGER", "MEMBER"}:
+            if body["role"] not in {"ORG_ADMIN", "MEMBER"}:
                 return error("Rol no válido", 422)
             user["role"] = body["role"]
         if body.get("active") is not None:
@@ -425,7 +425,7 @@ def create_invitation(admin):
     body = json_body()
     email = body.get("email", "")
     role = body.get("role", "MEMBER")
-    if not valid_email(email) or role not in {"ORG_ADMIN", "GROUP_MANAGER", "MEMBER"}:
+    if not valid_email(email) or role not in {"ORG_ADMIN", "MEMBER"}:
         return error("Datos de invitación no válidos", 422)
     group_ids = body.get("group_ids", [])
     if not isinstance(group_ids, list):
