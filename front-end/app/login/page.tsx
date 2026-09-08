@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/lib/auth"
 import { ApiError } from "@/lib/api"
+import { SiteFooter } from "@/components/site-footer"
 
 const DEMO = [
   { label: "Admin · Acme Corp", email: "admin@acme.com" },
@@ -111,6 +112,7 @@ export default function LoginPage() {
       </div>
 
       <StyleTag />
+        <SiteFooter />
     </main>
   )
 }
