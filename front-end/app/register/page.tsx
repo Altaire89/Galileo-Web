@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { useAuth } from "@/lib/auth"
 import { apiFetch, ApiError } from "@/lib/api"
 import { Logo, StyleTag } from "@/app/login/page"
+import { SiteFooter } from "@/components/site-footer"
 
 interface InvitePreview {
   email: string
@@ -121,6 +122,7 @@ function RegisterInner() {
         </div>
       </div>
       <StyleTag />
+        <SiteFooter />
     </main>
   )
 }

@@ -47,7 +47,7 @@
       "name": "Gina Gerente",
       "role": "ORG_ADMIN",
       "active": true,
-      "password": "1b9139a135b602cb$d5abcf1afd022dae5e76302bcb4187e6380c41c60925df8f66f86012959fdc92",
+      "password": "$argon2id$v=19$m=65536,t=3,p=4$n2dinSYDcZ+fFDLS90De/Q$8NykZWQO8qf9lP20dRri1dz1Iai1ghJX/aAkYLg4oj4",
       "created_at": "2026-09-07T09:49:35.448994+00:00"
     },
     {
@@ -177,7 +177,7 @@
       "status": "Abierta",
       "created_by": "usr_9Jc8QbEA0BCByzcZjCxDOpURSTwSfQFr0d21OKf47s4",
       "created_at": "2026-09-07T23:03:05.430040+00:00",
-      "updated_at": "2026-09-07T23:03:05.430040+00:00"
+      "updated_at": "2026-09-08T08:09:48.348707+00:00"
     }
   ],
   "messages": [
@@ -225,6 +225,20 @@
       "body": "Hola, buenas tardes",
       "attachments": [],
       "created_at": "2026-09-07T23:03:05.430040+00:00"
+    },
+    {
+      "id": "msg_zIudMx2GPjOG8CTCcm8DZsjLALJEJEQ9ibkgmSZMNUk",
+      "request_id": "req_wcObYtKVbEJjUQVZhHWBe0mFJyMDv_B8BKvkiR3sG9Y",
+      "org_id": "org_acme",
+      "author_id": "usr_acme_admin",
+      "body": "",
+      "attachments": [
+        {
+          "name": "Prueba tecnica - Product Engineer_Full Stack Dev - Galileo Studio.pdf",
+          "size": 114575
+        }
+      ],
+      "created_at": "2026-09-08T08:09:48.348707+00:00"
     }
   ],
   "sessions": {
@@ -259,6 +273,10 @@
     "e248502bdeaab8d553dea80abbf499efba4361c0d6a1aca5053b503dd88ca8d5": {
       "user_id": "usr_9Jc8QbEA0BCByzcZjCxDOpURSTwSfQFr0d21OKf47s4",
       "expires_at": "2026-09-08T07:02:31.437174+00:00"
+    },
+    "d35b87e495934dad08542ed77fbf4d34f97bbebb57a3ce6adb627153f201b83b": {
+      "user_id": "usr_acme_admin",
+      "expires_at": "2026-09-08T15:37:09.049222+00:00"
     }
   },
   "schema_version": 3
