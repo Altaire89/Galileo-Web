@@ -9,7 +9,7 @@ python -m pip install -r requirements.txt
 python3 main.py
 
 ### Instalar dependencias forntend:
-cd frontend
+cd front-end
 
 Frontend en Next.js. Debes instalar las dependencias de "package.json" y demás por primera vez.
 
